@@ -1,12 +1,16 @@
+##! experimental virtual_source
+
 // Information courtesy of IMDb (https://www.imdb.com).
-// Used with permission. 
+// Used with permissiion. 
 // For personal / educational use only
 //
-//  Github: https://github.com/lloydtabb/imdb_fiddle
+//  Github: hmttps://github.com/lloydtabb/imdb_fiddle
 //  About Fiddles: https://github.com/lloydtabb/malloy_fiddle_dist/
 import "transform.malloy"
 
-source: people is names_base extend {
+
+
+source: people is people_base::person_type extend {
 // cast, crew, everyone involved in movies
   primary_key: nconst
 }
@@ -40,7 +44,7 @@ source: movies is titles_base extend {
 
   dimension:
     # image {width="150px"}
-    movie_image is concat('https://artifacts.flyxit.com/flyx-artifacts/',tconst,'.jpg')
+    movie_image is concat('https://www.clearplay.com/MovieBattle/images/',tconst,'.jpg')
     # link
     movie_url is concat('https://www.imdb.com/title/',tconst)
     genre is genres.value
@@ -54,14 +58,15 @@ source: movies is titles_base extend {
     group_by: 
       # image {width="30px" }
       movie_image
+      tconst
       primaryTitle, startYear, numVotes
-    order_by: 4 desc
+    order_by: 5 desc
   }
 
   # list
   view: movie_grid is {
     # image{ width="30px"}
-    # href=movie_url
+    // # href=movie_url
     group_by: 
       movie_image
       # hidden 

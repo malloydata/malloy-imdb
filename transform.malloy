@@ -1,4 +1,4 @@
-##! experimental.persistence
+##! experimental.persistence  experimental.virtual_source
 
 source: raw_titles is duckdb.sql(""" 
 		SELECT * FROM
@@ -39,6 +39,21 @@ source: raw_names is duckdb.sql("""
 			, all_varchar=true, delim='\t', quote='',header=True)
 	""")
 
+type: title_type is {
+	tconst:: string,
+	isAdult:: string,
+	originalTitle:: string,
+	primaryTitle:: string,
+	startYear:: number,
+	endYear:: number,
+	runtimeMinutes:: number,
+	genres:: string[],
+	directors:: string[],
+	writers:: string[],
+	averageRating:: number,
+	numVotes:: number
+}
+
 #@ persist name="titles"
 source: titles_base is raw_titles -> {
 	join_one: raw_ratings on tconst = raw_ratings.tconst
@@ -51,15 +66,24 @@ source: titles_base is raw_titles -> {
 		endYear is endYear:::number
 		runtimeMinutes is runtimeMinutes:::number
 		genres is str_split!string[](genres,',')
-		directors is str_split!(raw_crew.directors,',')
-		writers is str_split!(raw_crew.writers,',')
+		directors is str_split!string[](raw_crew.directors,',')
+		writers is str_split!string[](raw_crew.writers,',')
 		averageRating is raw_ratings.averageRating:::number
 		numVotes is raw_ratings.numVotes:::number
-} extend {
+}::title_type extend {
 	view: test is {
 		select: *
 		limit: 10
 	}
+}
+
+type: principal_type is {
+	tconst:: string,
+	ordering:: number,
+	nconst:: string,
+	category:: string,
+	job:: string,
+	characters:: string[]
 }
 
 #@ persist name="principals"
@@ -68,22 +92,30 @@ source: principals_base is raw_principals -> {
 	where: titles.tconst is not null
 	select: 
 		tconst
-		ordering
+		ordering is ordering::number
 		nconst
 		category
 		job
-		characters is str_split!(
+		characters is str_split!string[](
 	regexp_replace!(characters,'[\[\]\"]','','g'),
 	',')
-} extend {
+}::principal_type extend {
 	view: test is {
 		select: *
 		limit: 10
 	}
 }
 
+type: person_type is {
+  nconst:: string,
+  birthYear:: number,
+  deathYear:: number,
+  primaryName:: string,
+  primaryProfession:: string
+}
+
 #@ persist name="names"
-source: names_base is   raw_names -> {
+source: people_base is   raw_names -> {
 	join_many: principals is raw_principals on nconst = principals.nconst
 	where: principals.nconst is not null
 	group_by: 
@@ -92,4 +124,5 @@ source: names_base is   raw_names -> {
 		primaryProfession
 		birthYear is birthYear:::number
 		deathYear is deathYear:::number
-	}
+	}::person_type
+
