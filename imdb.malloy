@@ -1,4 +1,4 @@
-##! experimental virtual_source
+##! experimental.virtual_source experimental.persistence
 
 // Information courtesy of IMDb (https://www.imdb.com).
 // Used with permissiion. 
@@ -170,3 +170,8 @@ source: movies is titles_base extend {
 
 // example query
 run: movies -> by_name
+
+run: people -> {
+  group_by: primaryName
+  aggregate: top10_count is by_year.sum(pick 1 when by_year.year_rank <= 10 else 0)
+}

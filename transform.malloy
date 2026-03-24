@@ -1,6 +1,6 @@
 ##! experimental.persistence  experimental.virtual_source
 
-source: raw_titles is duckdb.sql(""" 
+source: raw_titles is imdb.sql(""" 
 		SELECT * FROM
 		read_csv_auto(
 			-- 'https://datasets.imdbws.com/title.basics.tsv.gz'
@@ -8,7 +8,7 @@ source: raw_titles is duckdb.sql("""
 			, all_varchar=true, delim='\t', quote='',header=True)
 	""")
 
-source: raw_principals is duckdb.sql(""" 
+source: raw_principals is imdb.sql(""" 
 		SELECT * FROM
 		read_csv_auto(
 			-- 'https://datasets.imdbws.com/title.principals.tsv.gz'
@@ -16,7 +16,7 @@ source: raw_principals is duckdb.sql("""
 			, all_varchar=true, delim='\t', quote='',header=True)
 	""")
 
-source: raw_ratings is duckdb.sql(""" 
+source: raw_ratings is imdb.sql(""" 
 		SELECT * FROM
 		read_csv_auto(
 			-- 'https://datasets.imdbws.com/title.ratings.tsv.gz'
@@ -24,14 +24,14 @@ source: raw_ratings is duckdb.sql("""
 			, all_varchar=true, delim='\t', quote='',header=True)
 	""")
 
-source: raw_crew is duckdb.sql(""" 
+source: raw_crew is imdb.sql(""" 
 		SELECT * FROM
 		read_csv_auto(
 			-- 'https://datasets.imdbws.com/title.crew.tsv.gz'
 			'data/title.crew.tsv.gz'
 			, all_varchar=true, delim='\t', quote='',header=True)
 	""")
-source: raw_names is duckdb.sql(""" 
+source: raw_names is imdb.sql(""" 
 		SELECT * FROM
 		read_csv_auto(
 			-- 'https://datasets.imdbws.com/name.basics.tsv.gz'
@@ -51,14 +51,16 @@ type: title_type is {
 	directors:: string[],
 	writers:: string[],
 	averageRating:: number,
-	numVotes:: number
+	numVotes:: number,	
+	overall_rank:: number,
+	year_rank:: number
 }
 
 #@ persist name="titles"
 source: titles_base is raw_titles -> {
 	join_one: raw_ratings on tconst = raw_ratings.tconst
 	join_one: raw_crew on tconst = raw_crew.tconst
-	where: raw_ratings.numVotes::number > 30000
+	where: raw_ratings.numVotes::number > 5000
 	select:
 		tconst
 		isAdult, originalTitle, primaryTitle
@@ -70,6 +72,9 @@ source: titles_base is raw_titles -> {
 		writers is str_split!string[](raw_crew.writers,',')
 		averageRating is raw_ratings.averageRating:::number
 		numVotes is raw_ratings.numVotes:::number
+	calculate:
+		overall_rank is rank() {order_by: averageRating desc}
+		year_rank is rank() {partition_by: startYear order_by: averageRating desc}
 }::title_type extend {
 	view: test is {
 		select: *
@@ -88,7 +93,7 @@ type: principal_type is {
 
 #@ persist name="principals"
 source: principals_base is raw_principals -> {
-	join_one: titles is raw_titles on tconst = titles.tconst
+	join_one: titles is titles_base on tconst = titles.tconst
 	where: titles.tconst is not null
 	select: 
 		tconst
@@ -106,17 +111,25 @@ source: principals_base is raw_principals -> {
 	}
 }
 
+type: year_ratings is {
+  startYear:: number,
+  year_ratings:: number,
+  year_rank:: number
+}
+
 type: person_type is {
   nconst:: string,
   birthYear:: number,
   deathYear:: number,
   primaryName:: string,
-  primaryProfession:: string
+  primaryProfession:: string,
+	by_year:: year_ratings[]
 }
 
 #@ persist name="names"
 source: people_base is   raw_names -> {
-	join_many: principals is raw_principals on nconst = principals.nconst
+	join_many: principals is principals_base on nconst = principals.nconst
+	join_one: titles is titles_base on principals.tconst = titles.tconst
 	where: principals.nconst is not null
 	group_by: 
 		nconst
@@ -124,5 +137,28 @@ source: people_base is   raw_names -> {
 		primaryProfession
 		birthYear is birthYear:::number
 		deathYear is deathYear:::number
+		titles.startYear
+	aggregate:
+		year_ratings is titles.averageRating.sum()
+	calculate:
+		year_rank is rank() {partition_by: startYear order_by: year_ratings desc}
+	} 
+	-> {
+		group_by:
+			nconst
+			primaryName
+			primaryProfession
+			birthYear is birthYear:::number
+			deathYear is deathYear:::number
+		aggregate:
+		  lifetime_ratings is year_ratings.sum()
+		calculate:
+		  lifetime_rank is rank() {order_by: lifetime_ratings desc}
+		nest: by_year is {
+			group_by: 
+				startYear
+				year_ratings
+				year_rank
+		}
 	}::person_type
 
