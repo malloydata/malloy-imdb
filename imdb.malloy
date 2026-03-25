@@ -31,6 +31,7 @@ source: movies is titles_base extend {
   join_many: principals on tconst = principals.tconst
   join_many: principals2 is principals on tconst = principals2.tconst
   join_many: genre_movie_map on tconst = genre_movie_map.tconst
+  join_many: director is people on directors.each = director.nconst
   primary_key: tconst
 
   measure:
@@ -133,19 +134,17 @@ source: movies is titles_base extend {
 
   }
 
-  # list_detail
   view: top_directors is  {
-    limit: 5
+    limit: 100
     where: job = 'director'
     group_by: name
     aggregate: total_ratings
   }
 
-    # list_detail
   view: top_actors is  {
-    limit: 5
-    where: job = 'actor'
-    group_by: name
+    limit: 100
+    where: job = 'actor' | 'actress'
+    group_by: name, principals.nconst
     aggregate: total_ratings
   }
 
@@ -174,4 +173,14 @@ run: movies -> by_name
 run: people -> {
   group_by: primaryName
   aggregate: top10_count is by_year.sum(pick 1 when by_year.year_rank <= 10 else 0)
+}
+
+run: movies-> by_name + {
+  where: job = 'director'
+  nest: by_genre + {limit: 5 order_by: total_ratings desc}
+}
+
+run: movies -> by_title + {
+  //join_many: d is movies -> top_actors inner on directors.each = d.nconst
+  nest: director_list is {group_by: director is director.primaryName}
 }

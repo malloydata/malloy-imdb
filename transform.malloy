@@ -123,6 +123,8 @@ type: person_type is {
   deathYear:: number,
   primaryName:: string,
   primaryProfession:: string,
+	lifetime_rank:: number,
+	lifetime_ratings:: number,
 	by_year:: year_ratings[]
 }
 
